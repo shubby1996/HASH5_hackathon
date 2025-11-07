@@ -31,7 +31,7 @@ def invoke_specialist_agent(agent_type, patient_data):
     
     return completion
 
-def generate_comprehensive_report(patient_id, patient_name, patient_summary):
+def generate_comprehensive_report(patient_id, patient_name, patient_summary, progress_callback=None):
     """Generate comprehensive medical report using multi-agent system"""
     
     # Prepare data for each specialist
@@ -69,11 +69,21 @@ Analyze metabolic health.
 """
     
     # Invoke specialists
+    if progress_callback:
+        progress_callback("Step 1/4: Consulting Cardiologist...")
     cardio_report = invoke_specialist_agent('cardiologist', cardiac_data)
+    
+    if progress_callback:
+        progress_callback("Step 2/4: Consulting Radiologist...")
     radio_report = invoke_specialist_agent('radiologist', imaging_data)
+    
+    if progress_callback:
+        progress_callback("Step 3/4: Consulting Endocrinologist...")
     endo_report = invoke_specialist_agent('endocrinologist', metabolic_data)
     
     # Invoke orchestrator
+    if progress_callback:
+        progress_callback("Step 4/4: Generating Comprehensive Report...")
     orchestrator_input = f"""
 Patient: {patient_name} (ID: {patient_id})
 

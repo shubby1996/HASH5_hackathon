@@ -547,20 +547,27 @@ with col1:
                         st.rerun()
             
             if st.session_state.generating_report:
-                with st.spinner("Generating comprehensive report... (30-60 seconds)"):
-                    try:
-                        report = generate_comprehensive_report(
-                            st.session_state.current_patient_id,
-                            summary.get('name', 'Unknown'),
-                            summary
-                        )
-                        st.session_state.comprehensive_report = report
-                        st.session_state.generating_report = False
-                        st.success("[OK] Report generated successfully!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"[ERROR] Error generating report: {str(e)}")
-                        st.session_state.generating_report = False
+                progress_placeholder = st.empty()
+                status_placeholder = st.empty()
+                
+                def update_progress(message):
+                    status_placeholder.info(f"⏳ {message}")
+                
+                try:
+                    update_progress("Initializing multi-agent analysis...")
+                    report = generate_comprehensive_report(
+                        st.session_state.current_patient_id,
+                        summary.get('name', 'Unknown'),
+                        summary,
+                        progress_callback=update_progress
+                    )
+                    st.session_state.comprehensive_report = report
+                    st.session_state.generating_report = False
+                    status_placeholder.success("✅ Report generated successfully!")
+                    st.rerun()
+                except Exception as e:
+                    status_placeholder.error(f"❌ Error: {str(e)}")
+                    st.session_state.generating_report = False
 
     # Show comprehensive report if available
     if st.session_state.get('comprehensive_report'):
