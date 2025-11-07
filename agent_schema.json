@@ -1,0 +1,256 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "HealthLake Query API",
+    "version": "1.0.0",
+    "description": "API for querying patient health data from AWS HealthLake"
+  },
+  "paths": {
+    "/search-patients": {
+      "get": {
+        "summary": "Search for patients",
+        "description": "Retrieve a list of patients from HealthLake",
+        "operationId": "searchPatients",
+        "parameters": [
+          {
+            "name": "count",
+            "in": "query",
+            "description": "Number of patients to return",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "10"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of patients",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "patients": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/search-conditions": {
+      "get": {
+        "summary": "Search for medical conditions",
+        "description": "Retrieve medical conditions from HealthLake",
+        "operationId": "searchConditions",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "query",
+            "description": "Filter by patient ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of conditions"
+          }
+        }
+      }
+    },
+    "/search-observations": {
+      "get": {
+        "summary": "Search for observations",
+        "description": "Retrieve vital signs and lab results from HealthLake",
+        "operationId": "searchObservations",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "query",
+            "description": "Filter by patient ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of observations"
+          }
+        }
+      }
+    },
+    "/search-medications": {
+      "get": {
+        "summary": "Search for medication requests",
+        "description": "Retrieve prescriptions and medications from HealthLake",
+        "operationId": "searchMedications",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "query",
+            "description": "Filter by patient ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of medication requests"
+          }
+        }
+      }
+    },
+    "/search-encounters": {
+      "get": {
+        "summary": "Search for encounters",
+        "description": "Retrieve healthcare visits and appointments from HealthLake",
+        "operationId": "searchEncounters",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "query",
+            "description": "Filter by patient ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of encounters"
+          }
+        }
+      }
+    },
+    "/search-procedures": {
+      "get": {
+        "summary": "Search for procedures",
+        "description": "Retrieve medical procedures from HealthLake",
+        "operationId": "searchProcedures",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "query",
+            "description": "Filter by patient ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of procedures"
+          }
+        }
+      }
+    },
+    "/search-allergies": {
+      "get": {
+        "summary": "Search for allergies",
+        "description": "Retrieve allergy and intolerance information from HealthLake",
+        "operationId": "searchAllergies",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "query",
+            "description": "Filter by patient ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of allergies"
+          }
+        }
+      }
+    },
+    "/search-immunizations": {
+      "get": {
+        "summary": "Search for immunizations",
+        "description": "Retrieve vaccination records from HealthLake",
+        "operationId": "searchImmunizations",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "query",
+            "description": "Filter by patient ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of immunizations"
+          }
+        }
+      }
+    },
+    "/search-diagnostic-reports": {
+      "get": {
+        "summary": "Search for diagnostic reports",
+        "description": "Retrieve lab reports and test results from HealthLake",
+        "operationId": "searchDiagnosticReports",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "query",
+            "description": "Filter by patient ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of diagnostic reports"
+          }
+        }
+      }
+    },
+    "/search-careplans": {
+      "get": {
+        "summary": "Search for care plans",
+        "description": "Retrieve treatment plans and care activities from HealthLake",
+        "operationId": "searchCarePlans",
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "query",
+            "description": "Filter by patient ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of care plans"
+          }
+        }
+      }
+    }
+  }
+}

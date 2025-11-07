@@ -1,0 +1,233 @@
+import json
+import boto3
+import urllib.request
+from botocore.auth import SigV4Auth
+from botocore.awsrequest import AWSRequest
+
+DATASTORE_ID = 'b1f04342d94dcc96c47f9528f039f5a8'
+REGION = 'us-west-2'
+
+def search_healthlake(resource_type, params=None):
+    """Search HealthLake FHIR resources"""
+    endpoint = f"https://healthlake.{REGION}.amazonaws.com/datastore/{DATASTORE_ID}/r4/"
+    
+    session = boto3.Session(region_name=REGION)
+    credentials = session.get_credentials()
+    
+    url = f"{endpoint}{resource_type}"
+    if params:
+        url += "?" + "&".join([f"{k}={v}" for k, v in params.items()])
+    
+    request = AWSRequest(method='GET', url=url)
+    SigV4Auth(credentials, 'healthlake', REGION).add_auth(request)
+    
+    req = urllib.request.Request(url, headers=dict(request.headers))
+    with urllib.request.urlopen(req) as response:
+        return json.loads(response.read().decode())
+
+def lambda_handler(event, context):
+    """Lambda handler for Bedrock Agent"""
+    print(f"Event: {json.dumps(event)}")
+    
+    action = event.get('actionGroup')
+    api_path = event.get('apiPath')
+    parameters = event.get('parameters', [])
+    
+    # Convert parameters to dict
+    params = {p['name']: p['value'] for p in parameters}
+    
+    result = {}
+    
+    if api_path == '/search-patients':
+        data = search_healthlake('Patient', {'_count': params.get('count', '10')})
+        patients = []
+        for entry in data.get('entry', [])[:10]:
+            p = entry['resource']
+            name = p.get('name', [{}])[0]
+            patients.append({
+                'id': p.get('id'),
+                'name': f"{name.get('given', [''])[0]} {name.get('family', '')}",
+                'gender': p.get('gender'),
+                'birthDate': p.get('birthDate')
+            })
+        result = {'patients': patients}
+    
+    elif api_path == '/search-conditions':
+        patient_id = params.get('patient_id')
+        search_params = {'_count': '50'}
+        if patient_id:
+            search_params['patient'] = patient_id
+        
+        data = search_healthlake('Condition', search_params)
+        conditions = []
+        for entry in data.get('entry', [])[:20]:
+            c = entry['resource']
+            code = c.get('code', {}).get('coding', [{}])[0]
+            conditions.append({
+                'condition': code.get('display', 'Unknown'),
+                'patient': c.get('subject', {}).get('reference', '')
+            })
+        result = {'conditions': conditions}
+    
+    elif api_path == '/search-observations':
+        patient_id = params.get('patient_id')
+        search_params = {'_count': '50'}
+        if patient_id:
+            search_params['patient'] = patient_id
+        
+        data = search_healthlake('Observation', search_params)
+        observations = []
+        for entry in data.get('entry', [])[:20]:
+            o = entry['resource']
+            code = o.get('code', {}).get('coding', [{}])[0]
+            value = o.get('valueQuantity', {})
+            observations.append({
+                'observation': code.get('display', 'Unknown'),
+                'value': f"{value.get('value', '')} {value.get('unit', '')}" if value else 'N/A'
+            })
+        result = {'observations': observations}
+    
+    elif api_path == '/search-medications':
+        patient_id = params.get('patient_id')
+        search_params = {'_count': '50'}
+        if patient_id:
+            search_params['patient'] = patient_id
+        
+        data = search_healthlake('MedicationRequest', search_params)
+        medications = []
+        for entry in data.get('entry', [])[:20]:
+            m = entry['resource']
+            med = m.get('medicationCodeableConcept', {}).get('coding', [{}])[0]
+            medications.append({
+                'medication': med.get('display', 'Unknown'),
+                'status': m.get('status', 'Unknown'),
+                'authoredOn': m.get('authoredOn', 'N/A')
+            })
+        result = {'medications': medications}
+    
+    elif api_path == '/search-encounters':
+        patient_id = params.get('patient_id')
+        search_params = {'_count': '50'}
+        if patient_id:
+            search_params['patient'] = patient_id
+        
+        data = search_healthlake('Encounter', search_params)
+        encounters = []
+        for entry in data.get('entry', [])[:20]:
+            e = entry['resource']
+            enc_type = e.get('type', [{}])[0].get('coding', [{}])[0] if e.get('type') else {}
+            period = e.get('period', {})
+            encounters.append({
+                'type': enc_type.get('display', 'Unknown'),
+                'status': e.get('status', 'Unknown'),
+                'start': period.get('start', 'N/A'),
+                'end': period.get('end', 'N/A')
+            })
+        result = {'encounters': encounters}
+    
+    elif api_path == '/search-procedures':
+        patient_id = params.get('patient_id')
+        search_params = {'_count': '50'}
+        if patient_id:
+            search_params['patient'] = patient_id
+        
+        data = search_healthlake('Procedure', search_params)
+        procedures = []
+        for entry in data.get('entry', [])[:20]:
+            p = entry['resource']
+            code = p.get('code', {}).get('coding', [{}])[0]
+            period = p.get('performedPeriod', {})
+            procedures.append({
+                'procedure': code.get('display', 'Unknown'),
+                'status': p.get('status', 'Unknown'),
+                'performed': period.get('start', 'N/A')
+            })
+        result = {'procedures': procedures}
+    
+    elif api_path == '/search-allergies':
+        patient_id = params.get('patient_id')
+        search_params = {'_count': '50'}
+        if patient_id:
+            search_params['patient'] = patient_id
+        
+        data = search_healthlake('AllergyIntolerance', search_params)
+        allergies = []
+        for entry in data.get('entry', [])[:20]:
+            a = entry['resource']
+            code = a.get('code', {}).get('coding', [{}])[0]
+            allergies.append({
+                'allergy': code.get('display', 'Unknown'),
+                'criticality': a.get('criticality', 'Unknown'),
+                'type': a.get('type', 'Unknown')
+            })
+        result = {'allergies': allergies}
+    
+    elif api_path == '/search-immunizations':
+        patient_id = params.get('patient_id')
+        search_params = {'_count': '50'}
+        if patient_id:
+            search_params['patient'] = patient_id
+        
+        data = search_healthlake('Immunization', search_params)
+        immunizations = []
+        for entry in data.get('entry', [])[:20]:
+            i = entry['resource']
+            vaccine = i.get('vaccineCode', {}).get('coding', [{}])[0]
+            immunizations.append({
+                'vaccine': vaccine.get('display', 'Unknown'),
+                'status': i.get('status', 'Unknown'),
+                'date': i.get('occurrenceDateTime', 'N/A')
+            })
+        result = {'immunizations': immunizations}
+    
+    elif api_path == '/search-diagnostic-reports':
+        patient_id = params.get('patient_id')
+        search_params = {'_count': '50'}
+        if patient_id:
+            search_params['patient'] = patient_id
+        
+        data = search_healthlake('DiagnosticReport', search_params)
+        reports = []
+        for entry in data.get('entry', [])[:20]:
+            r = entry['resource']
+            code = r.get('code', {}).get('coding', [{}])[0]
+            reports.append({
+                'report': code.get('display', 'Unknown'),
+                'status': r.get('status', 'Unknown'),
+                'issued': r.get('issued', 'N/A')
+            })
+        result = {'reports': reports}
+    
+    elif api_path == '/search-careplans':
+        patient_id = params.get('patient_id')
+        search_params = {'_count': '50'}
+        if patient_id:
+            search_params['patient'] = patient_id
+        
+        data = search_healthlake('CarePlan', search_params)
+        careplans = []
+        for entry in data.get('entry', [])[:20]:
+            cp = entry['resource']
+            category = cp.get('category', [{}])[0].get('coding', [{}])[0] if cp.get('category') else {}
+            period = cp.get('period', {})
+            careplans.append({
+                'careplan': category.get('display', 'Unknown'),
+                'status': cp.get('status', 'Unknown'),
+                'start': period.get('start', 'N/A')
+            })
+        result = {'careplans': careplans}
+    
+    return {
+        'messageVersion': '1.0',
+        'response': {
+            'actionGroup': action,
+            'apiPath': api_path,
+            'httpMethod': 'GET',
+            'httpStatusCode': 200,
+            'responseBody': {
+                'application/json': {
+                    'body': json.dumps(result)
+                }
+            }
+        }
+    }
