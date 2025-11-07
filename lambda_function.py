@@ -21,9 +21,17 @@ def search_healthlake(resource_type, params=None):
     request = AWSRequest(method='GET', url=url)
     SigV4Auth(credentials, 'healthlake', REGION).add_auth(request)
     
-    req = urllib.request.Request(url, headers=dict(request.headers))
-    with urllib.request.urlopen(req) as response:
-        return json.loads(response.read().decode())
+    try:
+        req = urllib.request.Request(url, headers=dict(request.headers))
+        with urllib.request.urlopen(req) as response:
+            return json.loads(response.read().decode())
+    except urllib.error.HTTPError as e:
+        print(f"HTTPError: {e.code} - {e.reason}")
+        print(f"URL: {url}")
+        return {'entry': [], 'total': 0}
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return {'entry': [], 'total': 0}
 
 def lambda_handler(event, context):
     """Lambda handler for Bedrock Agent"""
