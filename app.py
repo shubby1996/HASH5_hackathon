@@ -13,18 +13,24 @@ import re
 
 load_dotenv()
 
-AGENT_ID = 'HSSKM4JAUB'
-AGENT_ALIAS_ID = 'TSTALIASID'
+DOCTOR_AGENT_ID = 'HSSKM4JAUB'
+DOCTOR_AGENT_ALIAS_ID = 'TSTALIASID'
+PATIENT_AGENT_ID = '67SSNLYIOJ'
+PATIENT_AGENT_ALIAS_ID = '7XNB3AYIYK'
 REGION = 'us-west-2'
 DATASTORE_ID = 'b1f04342d94dcc96c47f9528f039f5a8'
 
 def invoke_agent(prompt, session_id):
-    """Invoke Bedrock Agent"""
+    """Invoke Doctor Agent (for backward compatibility)"""
+    return invoke_doctor_agent(prompt, session_id)
+
+def invoke_doctor_agent(prompt, session_id):
+    """Invoke doctor agent for data retrieval"""
     runtime = boto3.client('bedrock-agent-runtime', region_name=REGION)
 
     response = runtime.invoke_agent(
-        agentId=AGENT_ID,
-        agentAliasId=AGENT_ALIAS_ID,
+        agentId=DOCTOR_AGENT_ID,
+        agentAliasId=DOCTOR_AGENT_ALIAS_ID,
         sessionId=session_id,
         inputText=prompt
     )
@@ -36,6 +42,38 @@ def invoke_agent(prompt, session_id):
             if 'bytes' in chunk:
                 completion += chunk['bytes'].decode('utf-8')
 
+    return completion
+
+def invoke_patient_agent_with_data(prompt, patient_name, patient_id, session_id):
+    """Get data from doctor agent, then explain via patient agent"""
+    runtime = boto3.client('bedrock-agent-runtime', region_name=REGION)
+    
+    # Get raw data from doctor agent
+    data_query = f"Get detailed information for patient ID {patient_id} including conditions, medications, and vital signs"
+    raw_data = invoke_doctor_agent(data_query, session_id + "_doctor")
+    
+    # Send to patient agent for translation
+    patient_prompt = f"""Patient {patient_name} asked: {prompt}
+
+Here is their medical data:
+{raw_data}
+
+Please explain this information in simple, friendly terms that the patient can easily understand. Avoid medical jargon."""
+    
+    response = runtime.invoke_agent(
+        agentId=PATIENT_AGENT_ID,
+        agentAliasId=PATIENT_AGENT_ALIAS_ID,
+        sessionId=session_id,
+        inputText=patient_prompt
+    )
+    
+    completion = ""
+    for event in response.get('completion', []):
+        if 'chunk' in event:
+            chunk = event['chunk']
+            if 'bytes' in chunk:
+                completion += chunk['bytes'].decode('utf-8')
+    
     return completion
 
 def search_healthlake(resource_type, params=None):
@@ -99,6 +137,11 @@ def get_all_patients():
             patients.append({'id': patient_id, 'name': name})
 
     return patients
+
+def get_all_patients_map():
+    """Get patient name to ID mapping"""
+    patients = get_all_patients()
+    return {p['name']: p['id'] for p in patients}
 
 def get_patient_mri_reports(patient_id):
     """Get MRI diagnostic reports for patient"""
@@ -221,6 +264,8 @@ st.set_page_config(
 )
 
 # Initialize session state
+if 'mode' not in st.session_state:
+    st.session_state.mode = 'doctor'
 if 'session_id' not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
 if 'messages' not in st.session_state:
@@ -233,12 +278,113 @@ if 'patient_summary' not in st.session_state:
     st.session_state.patient_summary = None
 if 'selected_view' not in st.session_state:
     st.session_state.selected_view = None
+if 'patient_name' not in st.session_state:
+    st.session_state.patient_name = ''
 
-# Header
-st.title("🏥 HealthLake AI Assistant with ECG Visualization")
-st.markdown("Ask questions about patient health data and view ECG waveforms")
+# Header with mode toggle
+col1, col2 = st.columns([3, 1])
+with col1:
+    st.title("🏥 HealthLake AI Assistant")
+with col2:
+    mode = st.radio("Mode:", ["👨⚕️ Doctor", "🩺 Patient"], horizontal=True, label_visibility="collapsed")
+    new_mode = 'doctor' if mode == "👨⚕️ Doctor" else 'patient'
+    if new_mode != st.session_state.mode:
+        st.session_state.mode = new_mode
+        st.session_state.messages = []
+        st.session_state.session_id = str(uuid.uuid4())
+        st.rerun()
+
+if st.session_state.mode == 'doctor':
+    st.markdown("**Doctor Mode** - Query patient health data and view ECG waveforms")
+else:
+    st.markdown("**Patient Mode** - Understand your health information in simple terms")
+
+# Mode-specific content
+if st.session_state.mode == 'patient':
+    # Patient mode UI
+    @st.cache_data(ttl=300)
+    def load_patients_map():
+        return get_all_patients_map()
+    
+    patient_map = load_patients_map()
+    patient_list = sorted(patient_map.keys())
+    
+    col_p1, col_p2 = st.columns([3, 1])
+    with col_p1:
+        if patient_list:
+            patient_name = st.selectbox(
+                "👤 Select your name:",
+                options=[''] + patient_list,
+                index=0 if not st.session_state.patient_name else (patient_list.index(st.session_state.patient_name) + 1 if st.session_state.patient_name in patient_list else 0)
+            )
+        else:
+            patient_name = st.text_input("👤 Enter your name:", value=st.session_state.patient_name)
+    
+    with col_p2:
+        if st.button("🔄 Refresh"):
+            st.cache_data.clear()
+            st.rerun()
+    
+    if patient_name != st.session_state.patient_name:
+        st.session_state.patient_name = patient_name
+        st.session_state.messages = []
+        st.session_state.session_id = str(uuid.uuid4())
+        st.session_state.current_patient_id = patient_map.get(patient_name) if patient_name else None
+        st.session_state.patient_summary = None
+        st.session_state.show_ecg = True
+    
+    if not patient_name:
+        st.info("👆 Please select your name from the dropdown to access your health information.")
+        if patient_list:
+            st.caption(f"📋 {len(patient_list)} patients available")
+        st.stop()
+    
+    patient_id = patient_map.get(patient_name)
+    st.session_state.current_patient_id = patient_id
+    st.success(f"✓ Viewing health information for: **{patient_name}**")
 
 # Sidebar
+with st.sidebar:
+    if st.session_state.mode == 'patient':
+        st.header("🩺 Patient Mode")
+        st.info(f"""
+        Viewing data for: **{st.session_state.patient_name}**
+        
+        I retrieve your data and explain it in simple terms!
+        """)
+        
+        st.header("Sample Questions")
+        samples = [
+            "What's my health status?",
+            "Explain my medical conditions",
+            "What medications am I taking?",
+            "Tell me about my care plan",
+            "What are my vital signs?"
+        ]
+        
+        for q in samples:
+            if st.button(q, key=f"patient_{q}"):
+                st.session_state.messages.append({"role": "user", "content": q})
+                with st.spinner("Getting your data..."):
+                    response = invoke_patient_agent_with_data(q, st.session_state.patient_name, st.session_state.current_patient_id, st.session_state.session_id)
+                    st.session_state.messages.append({"role": "assistant", "content": response})
+                st.rerun()
+        
+        st.divider()
+        
+        st.header("Medical Data")
+        if st.button("Show ECG", key="patient_ecg"):
+            st.session_state.show_ecg = True
+            st.rerun()
+        if st.button("Hide ECG", key="patient_hide_ecg"):
+            st.session_state.show_ecg = False
+            st.rerun()
+        
+        if st.button("Clear Chat", key="patient_clear"):
+            st.session_state.messages = []
+            st.session_state.session_id = str(uuid.uuid4())
+            st.rerun()
+
 with st.sidebar:
     st.header("Select Patient")
 
@@ -320,8 +466,11 @@ with st.sidebar:
         st.session_state.current_patient_id = None
         st.rerun()
 
-# Main content area
-col1, col2 = st.columns([2, 1])
+# Main content area - only for doctor mode, patient mode uses full width
+if st.session_state.mode == 'doctor':
+    col1, col2 = st.columns([2, 1])
+else:
+    col1, col2 = st.columns([2, 1])
 
 with col1:
     # Show patient summary if selected
@@ -379,32 +528,49 @@ with col1:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    if prompt := st.chat_input("Ask about patient health data..."):
-        # Add patient context if a patient is selected
-        if st.session_state.current_patient_id:
-            contextualized_prompt = f"For patient ID {st.session_state.current_patient_id}: {prompt}"
-        else:
-            contextualized_prompt = prompt
+    if st.session_state.mode == 'doctor':
+        if prompt := st.chat_input("Ask about patient health data..."):
+            # Add patient context if a patient is selected
+            if st.session_state.current_patient_id:
+                contextualized_prompt = f"For patient ID {st.session_state.current_patient_id}: {prompt}"
+            else:
+                contextualized_prompt = prompt
 
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            with st.chat_message("user"):
+                st.markdown(prompt)
 
-        with st.chat_message("assistant"):
-            with st.spinner("Analyzing health data..."):
-                response = invoke_agent(contextualized_prompt, st.session_state.session_id)
-                st.markdown(response)
+            with st.chat_message("assistant"):
+                with st.spinner("Analyzing health data..."):
+                    response = invoke_agent(contextualized_prompt, st.session_state.session_id)
+                    st.markdown(response)
 
-                patient_id = extract_patient_id(response)
-                if patient_id and not st.session_state.current_patient_id:
-                    st.session_state.current_patient_id = patient_id
-                    st.session_state.show_ecg = True
+                    patient_id = extract_patient_id(response)
+                    if patient_id and not st.session_state.current_patient_id:
+                        st.session_state.current_patient_id = patient_id
+                        st.session_state.show_ecg = True
 
-        st.session_state.messages.append({"role": "assistant", "content": response})
-        st.rerun()
+            st.session_state.messages.append({"role": "assistant", "content": response})
+            st.rerun()
+    else:
+        if prompt := st.chat_input("Ask me about your health information..."):
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            with st.chat_message("user"):
+                st.markdown(prompt)
+
+            with st.chat_message("assistant"):
+                with st.spinner("Getting your data and explaining it..."):
+                    response = invoke_patient_agent_with_data(prompt, st.session_state.patient_name, st.session_state.current_patient_id, st.session_state.session_id)
+                    st.markdown(response)
+
+            st.session_state.messages.append({"role": "assistant", "content": response})
+            st.rerun()
 
 with col2:
-    st.subheader("Medical Data Visualization")
+    if st.session_state.mode == 'patient':
+        st.subheader("Your Medical Data")
+    else:
+        st.subheader("Medical Data Visualization")
 
     if st.session_state.current_patient_id:
         if st.session_state.patient_summary:
