@@ -1,0 +1,132 @@
+{
+  "Comment": "Multi-Agent Medical Analysis Workflow",
+  "StartAt": "GetPatientData",
+  "States": {
+    "GetPatientData": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "InvokeBedrockAgent",
+        "Payload": {
+          "agentId": "HSSKM4JAUB",
+          "aliasId": "TSTALIASID",
+          "sessionId.$": "$.sessionId",
+          "inputText.$": "States.Format('Get comprehensive data for patient ID {}', $.patientId)"
+        }
+      },
+      "ResultPath": "$.patientData",
+      "Next": "ParallelSpecialistAnalysis",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleError"
+        }
+      ]
+    },
+    
+    "ParallelSpecialistAnalysis": {
+      "Type": "Parallel",
+      "Branches": [
+        {
+          "StartAt": "InvokeCardiologist",
+          "States": {
+            "InvokeCardiologist": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "InvokeBedrockAgent",
+                "Payload": {
+                  "agentId": "CDMSLUEUFQ",
+                  "aliasId": "TSTALIASID",
+                  "sessionId.$": "States.Format('{}-cardio', $.sessionId)",
+                  "inputText": "Analyze cardiac data: AFib, ECG irregular rhythm, enlarged left atrium"
+                }
+              },
+              "ResultPath": "$.cardiologyReport",
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "InvokeRadiologist",
+          "States": {
+            "InvokeRadiologist": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "InvokeBedrockAgent",
+                "Payload": {
+                  "agentId": "K0MU8VCNSK",
+                  "aliasId": "SKDFICIFI5",
+                  "sessionId.$": "States.Format('{}-radio', $.sessionId)",
+                  "inputText": "Analyze imaging: Cardiac MRI shows enlarged left atrium 4.5cm"
+                }
+              },
+              "ResultPath": "$.radiologyReport",
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "InvokeEndocrinologist",
+          "States": {
+            "InvokeEndocrinologist": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "InvokeBedrockAgent",
+                "Payload": {
+                  "agentId": "0GRU0APJFO",
+                  "aliasId": "KUSJRRPA9C",
+                  "sessionId.$": "States.Format('{}-endo', $.sessionId)",
+                  "inputText": "Analyze labs: Glucose 95, HbA1c 5.4%, LDL 110 mg/dL"
+                }
+              },
+              "ResultPath": "$.endocrinologyReport",
+              "End": true
+            }
+          }
+        }
+      ],
+      "ResultPath": "$.specialistReports",
+      "Next": "InvokeOrchestrator",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleError"
+        }
+      ]
+    },
+    
+    "InvokeOrchestrator": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "InvokeBedrockAgent",
+        "Payload": {
+          "agentId": "C5XRILWF9L",
+          "aliasId": "ZFDKCDLVFN",
+          "sessionId.$": "States.Format('{}-orch', $.sessionId)",
+          "inputText": "Generate comprehensive report from specialist findings"
+        }
+      },
+      "ResultPath": "$.finalReport",
+      "Next": "Success"
+    },
+    
+    "Success": {
+      "Type": "Succeed"
+    },
+    
+    "HandleError": {
+      "Type": "Pass",
+      "Result": {
+        "status": "error",
+        "message": "Workflow failed"
+      },
+      "End": true
+    }
+  }
+}

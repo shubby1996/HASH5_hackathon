@@ -10,6 +10,7 @@ from botocore.awsrequest import AWSRequest
 from dotenv import load_dotenv
 import io
 import re
+from multi_agent_ui_functions import generate_comprehensive_report
 
 load_dotenv()
 
@@ -280,6 +281,10 @@ if 'selected_view' not in st.session_state:
     st.session_state.selected_view = None
 if 'patient_name' not in st.session_state:
     st.session_state.patient_name = ''
+if 'comprehensive_report' not in st.session_state:
+    st.session_state.comprehensive_report = None
+if 'generating_report' not in st.session_state:
+    st.session_state.generating_report = False
 
 # Header with mode toggle
 col1, col2 = st.columns([3, 1])
@@ -331,6 +336,8 @@ if st.session_state.mode == 'patient':
         st.session_state.session_id = str(uuid.uuid4())
         st.session_state.current_patient_id = patient_map.get(patient_name) if patient_name else None
         st.session_state.patient_summary = None
+        st.session_state.comprehensive_report = None
+        st.session_state.generating_report = False
         st.session_state.show_ecg = True
     
     if not patient_name:
@@ -407,6 +414,8 @@ with st.sidebar:
                 st.session_state.current_patient_id = selected_id
                 st.session_state.show_ecg = True
                 st.session_state.patient_summary = None
+                st.session_state.comprehensive_report = None
+                st.session_state.generating_report = False
                 st.rerun()
 
     st.divider()
@@ -521,7 +530,61 @@ with col1:
                     with st.expander(f"{report['type']} - {report['status']}"):
                         st.write(f"**Date:** {report['date'][:10] if len(report['date']) > 10 else report['date']}")
                         st.write(f"**Findings:** {report['conclusion']}")
+            
+            st.divider()
+            
+            # Multi-Agent Report Generation
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                if st.button("[AI] Generate Comprehensive Report", use_container_width=True):
+                    st.session_state.generating_report = True
+                    st.rerun()
+            
+            with col_btn2:
+                if st.session_state.comprehensive_report:
+                    if st.button("[VIEW] View Report", use_container_width=True):
+                        st.session_state.show_report = True
+                        st.rerun()
+            
+            if st.session_state.generating_report:
+                with st.spinner("Generating comprehensive report... (30-60 seconds)"):
+                    try:
+                        report = generate_comprehensive_report(
+                            st.session_state.current_patient_id,
+                            summary.get('name', 'Unknown'),
+                            summary
+                        )
+                        st.session_state.comprehensive_report = report
+                        st.session_state.generating_report = False
+                        st.success("[OK] Report generated successfully!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"[ERROR] Error generating report: {str(e)}")
+                        st.session_state.generating_report = False
 
+    # Show comprehensive report if available
+    if st.session_state.get('comprehensive_report'):
+        with st.expander("[REPORT] Comprehensive Medical Report", expanded=st.session_state.get('show_report', False)):
+            report = st.session_state.comprehensive_report
+            
+            tabs = st.tabs(["Overview", "Cardiology", "Radiology", "Endocrinology"])
+            
+            with tabs[0]:
+                st.markdown("### Comprehensive Analysis")
+                st.markdown(report['comprehensive'])
+            
+            with tabs[1]:
+                st.markdown("### Cardiology Report")
+                st.markdown(report['cardiology'])
+            
+            with tabs[2]:
+                st.markdown("### Radiology Report")
+                st.markdown(report['radiology'])
+            
+            with tabs[3]:
+                st.markdown("### Endocrinology Report")
+                st.markdown(report['endocrinology'])
+    
     st.subheader("Chat")
 
     for message in st.session_state.messages:

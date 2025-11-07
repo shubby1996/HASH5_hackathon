@@ -23,5 +23,9 @@
     "agent_id": "C5XRILWF9L",
     "alias_id": "ZFDKCDLVFN",
     "description": "Coordinates all specialist agents and generates comprehensive reports"
+  },
+  "step_function": {
+    "arn": "arn:aws:states:us-west-2:891450252216:stateMachine:MultiAgentMedicalAnalysis",
+    "name": "MultiAgentMedicalAnalysis"
   }
 }
