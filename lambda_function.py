@@ -9,9 +9,14 @@ REGION = 'us-west-2'
 
 def search_healthlake(resource_type, params=None):
     """Search HealthLake FHIR resources"""
+    import requests
+    from botocore.auth import SigV4Auth
+    from botocore.awsrequest import AWSRequest
+    
     endpoint = f"https://healthlake.{REGION}.amazonaws.com/datastore/{DATASTORE_ID}/r4/"
     
-    session = boto3.Session(region_name=REGION)
+    # Use boto3 default session which uses Lambda execution role
+    session = boto3.Session()
     credentials = session.get_credentials()
     
     url = f"{endpoint}{resource_type}"
@@ -22,11 +27,11 @@ def search_healthlake(resource_type, params=None):
     SigV4Auth(credentials, 'healthlake', REGION).add_auth(request)
     
     try:
-        req = urllib.request.Request(url, headers=dict(request.headers))
-        with urllib.request.urlopen(req) as response:
-            return json.loads(response.read().decode())
-    except urllib.error.HTTPError as e:
-        print(f"HTTPError: {e.code} - {e.reason}")
+        response = requests.get(url, headers=dict(request.headers))
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.HTTPError as e:
+        print(f"HTTPError: {e.response.status_code} - {e.response.text[:200]}")
         print(f"URL: {url}")
         return {'entry': [], 'total': 0}
     except Exception as e:
@@ -229,18 +234,18 @@ def lambda_handler(event, context):
         result = {'careplans': careplans, 'total': data.get('total', 0)}
     
     elif api_path == '/get-summary':
-        # Get counts for all resource types
+        # Get counts for all resource types (HealthLake max _count is 100)
         resource_types = ['Patient', 'Condition', 'Observation', 'MedicationRequest', 
                          'Encounter', 'Procedure', 'AllergyIntolerance', 'Immunization',
                          'DiagnosticReport', 'CarePlan']
         
         summary = {}
         for resource_type in resource_types:
-            data = search_healthlake(resource_type, {'_count': '1000'})
+            data = search_healthlake(resource_type, {'_count': '100'})
             count = len(data.get('entry', []))
             summary[resource_type] = count
         
-        result = {'summary': summary, 'total_resources': sum(summary.values())}
+        result = {'summary': summary, 'total_resources': sum(summary.values()), 'note': 'Counts limited to 100 per resource type'}
     
     return {
         'messageVersion': '1.0',
