@@ -46,3 +46,4 @@ schema_report.txt
 
 # Docker
 .dockerignore
+"*.pem" 
