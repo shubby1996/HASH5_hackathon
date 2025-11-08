@@ -285,16 +285,54 @@ For issues or questions:
 3. Check HealthLake datastore status
 4. Verify IAM permissions
 
+## 🚀 AWS Deployment (NEW!)
+
+### Deploy to AWS with CDK
+
+We now have a **React + FastAPI** version that can be deployed to AWS!
+
+**Quick Deploy:**
+```bash
+cd infrastructure
+deploy.bat  # Windows
+# or
+./deploy.sh  # Mac/Linux
+```
+
+**What gets deployed:**
+- ✅ React frontend (S3 + CloudFront)
+- ✅ FastAPI backend (Lambda + API Gateway)
+- ✅ DynamoDB (Q&A history)
+- ✅ S3 (Reports storage)
+
+**Documentation:**
+- `AWS_DEPLOYMENT_COMPLETE.md` - Full deployment guide
+- `DEPLOYMENT_CHECKLIST.md` - Step-by-step checklist
+- `DEPLOYMENT_SUMMARY.md` - Quick summary
+- `infrastructure/README.md` - CDK infrastructure docs
+
+### Docker Deployment (Local)
+
+**Run locally with Docker:**
+```bash
+docker-compose up --build
+```
+
+- Frontend: http://localhost:3000
+- Backend: http://localhost:8000
+
+See `DEPLOYMENT.md` for details.
+
 ## 🎯 Next Steps
 
 1. ✅ Basic setup complete
 2. ✅ Agent deployed
 3. ✅ All resources accessible
-4. 🔄 Add more SYNTHEA data
-5. 🔄 Enhance UI with visualizations
-6. 🔄 Add patient-specific dashboards
-7. 🔄 Implement data export features
+4. ✅ React + FastAPI migration complete
+5. ✅ Docker deployment ready
+6. ✅ AWS CDK infrastructure ready
+7. 🔄 Deploy to AWS (follow AWS_DEPLOYMENT_COMPLETE.md)
 
 ---
 
-**Built with AWS Bedrock, HealthLake, Lambda, and Streamlit**
+**Built with AWS Bedrock, HealthLake, Lambda, React, and FastAPI**
